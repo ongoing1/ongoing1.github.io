@@ -1,0 +1,378 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>MySQL技术内幕：InnoDB存储引擎阅读笔记（一） | 不怕娜的博客</title><meta name="author"><meta name="copyright"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="第一章 MySQL体系结构和存储引擎1.1 定义数据库和实例数据库与实例的区别    概念 定义 组成    数据库 物理概念 操作系统上的文件集合（frm、ibd、MYD等文件）   实例 程序概念 后台线程 + 共享内存区    在 MySQL 中，实例和数据库通常是一一对应的关系。一个实例就对应一份操作系统上的文件集合 MySQL 是单进程多线程架构  启动实例时的配置文件读取顺序（Linu">
+<meta property="og:type" content="article">
+<meta property="og:title" content="MySQL技术内幕：InnoDB存储引擎阅读笔记（一）">
+<meta property="og:url" content="https://ongoing1.github.io/2025/03/15/%E6%8A%80%E6%9C%AF%E7%AC%94%E8%AE%B0/%E6%95%B0%E6%8D%AE%E5%BA%93/MySQL/MySQL%E6%8A%80%E6%9C%AF%E5%86%85%E5%B9%95%EF%BC%9AInnoDB%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E%E9%98%85%E8%AF%BB%E7%AC%94%E8%AE%B0%EF%BC%88%E4%B8%80%EF%BC%89/index.html">
+<meta property="og:site_name" content="不怕娜的博客">
+<meta property="og:description" content="第一章 MySQL体系结构和存储引擎1.1 定义数据库和实例数据库与实例的区别    概念 定义 组成    数据库 物理概念 操作系统上的文件集合（frm、ibd、MYD等文件）   实例 程序概念 后台线程 + 共享内存区    在 MySQL 中，实例和数据库通常是一一对应的关系。一个实例就对应一份操作系统上的文件集合 MySQL 是单进程多线程架构  启动实例时的配置文件读取顺序（Linu">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://ongoing1.github.io/img/butterfly-icon.png">
+<meta property="article:published_time" content="2025-03-14T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-04-15T09:52:17.004Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://ongoing1.github.io/img/butterfly-icon.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "MySQL技术内幕：InnoDB存储引擎阅读笔记（一）",
+  "url": "https://ongoing1.github.io/2025/03/15/%E6%8A%80%E6%9C%AF%E7%AC%94%E8%AE%B0/%E6%95%B0%E6%8D%AE%E5%BA%93/MySQL/MySQL%E6%8A%80%E6%9C%AF%E5%86%85%E5%B9%95%EF%BC%9AInnoDB%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E%E9%98%85%E8%AF%BB%E7%AC%94%E8%AE%B0%EF%BC%88%E4%B8%80%EF%BC%89/",
+  "image": "https://ongoing1.github.io/img/butterfly-icon.png",
+  "datePublished": "2025-03-14T16:00:00.000Z",
+  "dateModified": "2026-04-15T09:52:17.004Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": null,
+      "url": "https://ongoing1.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://ongoing1.github.io/2025/03/15/%E6%8A%80%E6%9C%AF%E7%AC%94%E8%AE%B0/%E6%95%B0%E6%8D%AE%E5%BA%93/MySQL/MySQL%E6%8A%80%E6%9C%AF%E5%86%85%E5%B9%95%EF%BC%9AInnoDB%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E%E9%98%85%E8%AF%BB%E7%AC%94%E8%AE%B0%EF%BC%88%E4%B8%80%EF%BC%89/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'MySQL技术内幕：InnoDB存储引擎阅读笔记（一）',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="bg-animation" id="web_bg" style="background: linear-gradient(to bottom right, #e8f4f8, #f0e6f6);"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/butterfly-icon.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">4</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">4</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">5</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">不怕娜的博客</span></a><a class="nav-page-title" href="/"><span class="site-name">MySQL技术内幕：InnoDB存储引擎阅读笔记（一）</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">MySQL技术内幕：InnoDB存储引擎阅读笔记（一）</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2025-03-14T16:00:00.000Z" title="发表于 2025-03-15 00:00:00">2025-03-15</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-04-15T09:52:17.004Z" title="更新于 2026-04-15 17:52:17">2026-04-15</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E6%8A%80%E6%9C%AF%E7%AC%94%E8%AE%B0/">技术笔记</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E6%8A%80%E6%9C%AF%E7%AC%94%E8%AE%B0/%E6%95%B0%E6%8D%AE%E5%BA%93/">数据库</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E6%8A%80%E6%9C%AF%E7%AC%94%E8%AE%B0/%E6%95%B0%E6%8D%AE%E5%BA%93/MySQL/">MySQL</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="第一章-MySQL体系结构和存储引擎"><a href="#第一章-MySQL体系结构和存储引擎" class="headerlink" title="第一章 MySQL体系结构和存储引擎"></a>第一章 MySQL体系结构和存储引擎</h1><h2 id="1-1-定义数据库和实例"><a href="#1-1-定义数据库和实例" class="headerlink" title="1.1 定义数据库和实例"></a>1.1 定义数据库和实例</h2><p><strong>数据库与实例的区别</strong></p>
+<table>
+<thead>
+<tr>
+<th>概念</th>
+<th>定义</th>
+<th>组成</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>数据库</strong></td>
+<td>物理概念</td>
+<td>操作系统上的文件集合（frm、ibd、MYD等文件）</td>
+</tr>
+<tr>
+<td><strong>实例</strong></td>
+<td>程序概念</td>
+<td>后台线程 + 共享内存区</td>
+</tr>
+</tbody></table>
+<ul>
+<li>在 MySQL 中，实例和数据库通常是<strong>一一对应</strong>的关系。一个实例就对应一份操作系统上的文件集合</li>
+<li>MySQL 是<strong>单进程多线程</strong>架构</li>
+</ul>
+<p><strong>启动实例时的配置文件读取顺序</strong>（Linux）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/etc/my.cnf → /etc/mysql/my.cnf → /usr/local/mysql/etc/my.cnf → ~/.my.cnf</span><br></pre></td></tr></table></figure>
+<p>后读取的配置会覆盖先读取的配置。</p>
+<hr>
+<h2 id="1-2-MySQL体系结构"><a href="#1-2-MySQL体系结构" class="headerlink" title="1.2 MySQL体系结构"></a>1.2 MySQL体系结构</h2><p>MySQL 数据库区别于其他数据库的最重要特点：<strong>插件式的表存储引擎</strong>。</p>
+<p><strong>体系结构分层</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">┌─────────────────────────────────────────┐</span><br><span class="line">│           连接池 (Connection Pool)        │</span><br><span class="line">├─────────────────────────────────────────┤</span><br><span class="line">│  管理服务  │  SQL接口  │ 解析器 │ 优化器 │ 缓存 │</span><br><span class="line">├─────────────────────────────────────────┤</span><br><span class="line">│         插件式存储引擎（可插拔）            │  ← 核心特性</span><br><span class="line">│    InnoDB │ MyISAM │ Memory │ ...       │</span><br><span class="line">├─────────────────────────────────────────┤</span><br><span class="line">│              物理文件                     │</span><br><span class="line">└─────────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<p><strong>重要理解</strong>：</p>
+<ul>
+<li>存储引擎是<strong>基于表</strong>的，而不是基于数据库的</li>
+<li>同一个数据库中的不同表可以使用不同的存储引擎</li>
+<li>存储引擎负责数据的存储和提取，不解析 SQL（SQL 解析在上层完成）</li>
+</ul>
+<hr>
+<h2 id="1-3-MySQL存储引擎"><a href="#1-3-MySQL存储引擎" class="headerlink" title="1.3 MySQL存储引擎"></a>1.3 MySQL存储引擎</h2><h3 id="InnoDB-存储引擎（重点）"><a href="#InnoDB-存储引擎（重点）" class="headerlink" title="InnoDB 存储引擎（重点）"></a>InnoDB 存储引擎（重点）</h3><p>InnoDB 是目前 MySQL 的<strong>默认存储引擎</strong>（MySQL 5.5.8 起）。</p>
+<p><strong>核心特性</strong>：</p>
+<ul>
+<li><strong>支持事务</strong>：完整支持 ACID 特性</li>
+<li><strong>行锁设计</strong>：支持行级锁，并发性能高</li>
+<li><strong>支持外键</strong>：唯一支持外键约束的存储引擎</li>
+<li><strong>MVCC</strong>：多版本并发控制，实现高并发</li>
+<li><strong>一致性非锁定读</strong>：默认读操作不加锁</li>
+<li><strong>next-key locking</strong>：避免幻读问题</li>
+</ul>
+<p><strong>存储方式</strong>：</p>
+<ul>
+<li>数据存放在逻辑表空间中（tablespace）</li>
+<li>可以配置为每张表一个独立的 ibd 文件（<code>innodb_file_per_table</code>）</li>
+</ul>
+<h3 id="MyISAM-存储引擎"><a href="#MyISAM-存储引擎" class="headerlink" title="MyISAM 存储引擎"></a>MyISAM 存储引擎</h3><p>MySQL 5.5.8 之前的默认存储引擎。</p>
+<p><strong>特点</strong>：</p>
+<ul>
+<li><strong>不支持事务</strong></li>
+<li><strong>表锁设计</strong>：并发性能较差</li>
+<li>支持<strong>全文索引</strong></li>
+<li>缓冲池只缓存索引文件，不缓存数据文件</li>
+</ul>
+<p><strong>文件组成</strong>：</p>
+<ul>
+<li><code>.frm</code>：表结构定义文件</li>
+<li><code>.MYD</code>：数据文件（MYData）</li>
+<li><code>.MYI</code>：索引文件（MYIndex）</li>
+</ul>
+<h3 id="其他存储引擎简述"><a href="#其他存储引擎简述" class="headerlink" title="其他存储引擎简述"></a>其他存储引擎简述</h3><table>
+<thead>
+<tr>
+<th>存储引擎</th>
+<th>特点</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>NDB</strong></td>
+<td>数据存内存，Share Nothing 集群架构</td>
+<td>MySQL Cluster 集群</td>
+</tr>
+<tr>
+<td><strong>Memory</strong></td>
+<td>数据存内存，重启丢失，哈希索引</td>
+<td>临时表、快速查找</td>
+</tr>
+<tr>
+<td><strong>Archive</strong></td>
+<td>只支持 INSERT&#x2F;SELECT，高压缩比</td>
+<td>日志归档、审计数据</td>
+</tr>
+<tr>
+<td><strong>Federated</strong></td>
+<td>不存储数据，指向远程 MySQL 表</td>
+<td>跨服务器访问</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="1-4-各存储引擎之间的比较"><a href="#1-4-各存储引擎之间的比较" class="headerlink" title="1.4 各存储引擎之间的比较"></a>1.4 各存储引擎之间的比较</h2><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>InnoDB</th>
+<th>MyISAM</th>
+<th>Memory</th>
+<th>Archive</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>事务</td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>锁粒度</td>
+<td>行锁</td>
+<td>表锁</td>
+<td>表锁</td>
+<td>行锁</td>
+</tr>
+<tr>
+<td>MVCC</td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>外键</td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>B+树索引</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>哈希索引</td>
+<td>自适应</td>
+<td>❌</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>全文索引</td>
+<td>✅(5.6+)</td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>数据压缩</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="1-5-连接-MySQL"><a href="#1-5-连接-MySQL" class="headerlink" title="1.5 连接 MySQL"></a>1.5 连接 MySQL</h2><p><strong>三种连接方式</strong>：</p>
+<ol>
+<li><p><strong>TCP&#x2F;IP</strong>（最常用）</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">mysql -h 192.168.1.100 -u root -p</span><br></pre></td></tr></table></figure>
+<ul>
+<li>客户端和服务端可以在不同机器上</li>
+<li>通过 IP 地址和端口号连接</li>
+</ul>
+</li>
+<li><p><strong>命名管道&#x2F;共享内存</strong>（Windows 本地）</p>
+<ul>
+<li>配置 <code>--enable-named-pipe</code> 启用</li>
+</ul>
+</li>
+<li><p><strong>Unix 域套接字</strong>（Unix&#x2F;Linux 本地）</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">mysql -S /tmp/mysql.sock -u root -p</span><br></pre></td></tr></table></figure>
+<ul>
+<li>只能用于本地连接</li>
+<li>性能比 TCP&#x2F;IP 略好</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h2 id="本章核心要点总结"><a href="#本章核心要点总结" class="headerlink" title="本章核心要点总结"></a>本章核心要点总结</h2><ol>
+<li><p><strong>数据库是文件，实例是程序</strong>：理解两者区别是理解 MySQL 架构的基础</p>
+</li>
+<li><p><strong>插件式存储引擎</strong>：MySQL 最重要的特性，存储引擎基于表而非数据库</p>
+</li>
+<li><p><strong>InnoDB 是默认引擎</strong>：支持事务、行锁、外键、MVCC，适合 OLTP 场景</p>
+</li>
+<li><p><strong>选择存储引擎的原则</strong>：</p>
+<ul>
+<li>需要事务 → InnoDB</li>
+<li>需要全文索引且 MySQL &lt; 5.6 → MyISAM</li>
+<li>临时数据、快速查找 → Memory</li>
+<li>日志归档 → Archive</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h2 id="疑难点标记"><a href="#疑难点标记" class="headerlink" title="疑难点标记"></a>疑难点标记</h2><blockquote>
+<p><strong>Q1</strong>: 为什么说存储引擎是基于表的？</p>
+<p><strong>A</strong>: 创建表时可以指定 <code>ENGINE=xxx</code>，同一数据库的不同表可以用不同引擎。</p>
+</blockquote>
+<blockquote>
+<p><strong>Q2</strong>: InnoDB 的 MVCC 是什么？</p>
+<p><strong>A</strong>: 多版本并发控制，通过保存数据的历史版本来实现高并发读取，将在后续章节详细讲解。</p>
+</blockquote>
+<blockquote>
+<p><strong>Q3</strong>: 行锁和表锁有什么区别？</p>
+<p><strong>A</strong>: 行锁只锁定被访问的行，并发度高；表锁锁定整张表，实现简单但并发度低。</p>
+</blockquote>
+</article><div class="tag_share"><div class="post-share"><div class="social-share" data-image="/img/butterfly-icon.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2025/03/18/%E6%8A%80%E6%9C%AF%E7%AC%94%E8%AE%B0/%E6%95%B0%E6%8D%AE%E5%BA%93/MySQL/MySQL%E6%8A%80%E6%9C%AF%E5%86%85%E5%B9%95%EF%BC%9AInnoDB%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E%E9%98%85%E8%AF%BB%E7%AC%94%E8%AE%B0%EF%BC%88%E4%BA%8C%EF%BC%89/" title="MySQL技术内幕：InnoDB存储引擎阅读笔记（二）"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">MySQL技术内幕：InnoDB存储引擎阅读笔记（二）</div></div><div class="info-2"><div class="info-item-1">第二章 InnoDB存储引擎2.1 InnoDB存储引擎概述InnoDB 是第一个完整支持 ACID 事务的 MySQL 存储引擎，由 Innobase Oy 公司开发，后被 Oracle 收购。  2.2 InnoDB存储引擎的版本   版本 MySQL 版本 新增特性    老版本 InnoDB MySQL 5.1 之前 内置，功能有限   InnoDB Plugin MySQL 5.1 可选安装，支持 Fast Index Creation   InnoDB 1.0.x MySQL 5.5 继承 Plugin 特性   InnoDB 1.1.x MySQL 5.6 支持全文索引、在线 DDL   InnoDB 1.2.x MySQL 5.7 更多性能优化    2.3 InnoDB体系架构（重点）InnoDB 体系架构由后台线程和内存池两大部分组成。 12345678910111213141516171819202122┌─────────────────────────────────────────────────────┐│                    In...</div></div></div></a></nav></div><div class="aside-content" id="aside-content"><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E7%AC%AC%E4%B8%80%E7%AB%A0-MySQL%E4%BD%93%E7%B3%BB%E7%BB%93%E6%9E%84%E5%92%8C%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E"><span class="toc-number">1.</span> <span class="toc-text">第一章 MySQL体系结构和存储引擎</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-1-%E5%AE%9A%E4%B9%89%E6%95%B0%E6%8D%AE%E5%BA%93%E5%92%8C%E5%AE%9E%E4%BE%8B"><span class="toc-number">1.1.</span> <span class="toc-text">1.1 定义数据库和实例</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#1-2-MySQL%E4%BD%93%E7%B3%BB%E7%BB%93%E6%9E%84"><span class="toc-number">1.2.</span> <span class="toc-text">1.2 MySQL体系结构</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#1-3-MySQL%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E"><span class="toc-number">1.3.</span> <span class="toc-text">1.3 MySQL存储引擎</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#InnoDB-%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E%EF%BC%88%E9%87%8D%E7%82%B9%EF%BC%89"><span class="toc-number">1.3.1.</span> <span class="toc-text">InnoDB 存储引擎（重点）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#MyISAM-%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E"><span class="toc-number">1.3.2.</span> <span class="toc-text">MyISAM 存储引擎</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B6%E4%BB%96%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E%E7%AE%80%E8%BF%B0"><span class="toc-number">1.3.3.</span> <span class="toc-text">其他存储引擎简述</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#1-4-%E5%90%84%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E%E4%B9%8B%E9%97%B4%E7%9A%84%E6%AF%94%E8%BE%83"><span class="toc-number">1.4.</span> <span class="toc-text">1.4 各存储引擎之间的比较</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#1-5-%E8%BF%9E%E6%8E%A5-MySQL"><span class="toc-number">1.5.</span> <span class="toc-text">1.5 连接 MySQL</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%9C%AC%E7%AB%A0%E6%A0%B8%E5%BF%83%E8%A6%81%E7%82%B9%E6%80%BB%E7%BB%93"><span class="toc-number">1.6.</span> <span class="toc-text">本章核心要点总结</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%96%91%E9%9A%BE%E7%82%B9%E6%A0%87%E8%AE%B0"><span class="toc-number">1.7.</span> <span class="toc-text">疑难点标记</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/02/27/%E6%8A%80%E6%9C%AF%E7%AC%94%E8%AE%B0/%E6%95%B0%E6%8D%AE%E5%BA%93/MySQL/%E6%85%A2%E6%9F%A5%E8%AF%A2%E6%97%A5%E5%BF%97%E8%AE%B0%E5%BD%95%E8%A7%84%E5%88%99%E6%8E%A2%E7%A9%B6/" title="MySQL 慢查询日志记录规则探究">MySQL 慢查询日志记录规则探究</a><time datetime="2026-02-26T16:00:00.000Z" title="发表于 2026-02-27 00:00:00">2026-02-27</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2025/07/15/%E6%8A%80%E6%9C%AF%E7%AC%94%E8%AE%B0/%E7%BC%96%E7%A8%8B%E5%BC%80%E5%8F%91/Python/Python%E4%B8%AD%E7%9A%84%E7%B1%BB/" title="Python中的类">Python中的类</a><time datetime="2025-07-14T16:00:00.000Z" title="发表于 2025-07-15 00:00:00">2025-07-15</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2025/03/18/%E6%8A%80%E6%9C%AF%E7%AC%94%E8%AE%B0/%E6%95%B0%E6%8D%AE%E5%BA%93/MySQL/MySQL%E6%8A%80%E6%9C%AF%E5%86%85%E5%B9%95%EF%BC%9AInnoDB%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E%E9%98%85%E8%AF%BB%E7%AC%94%E8%AE%B0%EF%BC%88%E4%BA%8C%EF%BC%89/" title="MySQL技术内幕：InnoDB存储引擎阅读笔记（二）">MySQL技术内幕：InnoDB存储引擎阅读笔记（二）</a><time datetime="2025-03-17T16:00:00.000Z" title="发表于 2025-03-18 00:00:00">2025-03-18</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2025/03/15/%E6%8A%80%E6%9C%AF%E7%AC%94%E8%AE%B0/%E6%95%B0%E6%8D%AE%E5%BA%93/MySQL/MySQL%E6%8A%80%E6%9C%AF%E5%86%85%E5%B9%95%EF%BC%9AInnoDB%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E%E9%98%85%E8%AF%BB%E7%AC%94%E8%AE%B0%EF%BC%88%E4%B8%80%EF%BC%89/" title="MySQL技术内幕：InnoDB存储引擎阅读笔记（一）">MySQL技术内幕：InnoDB存储引擎阅读笔记（一）</a><time datetime="2025-03-14T16:00:00.000Z" title="发表于 2025-03-15 00:00:00">2025-03-15</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By null</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><div class="js-pjax"></div></div></body></html>
